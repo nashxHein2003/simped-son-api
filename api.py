@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Resource, Api, reqparse, fields, marshal_with, abort
+from flask_cors import CORS
 import os
 
 app = Flask(__name__)
@@ -8,6 +9,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///image.db'
 app.config['UPLOAD_FOLDER'] = 'image'
 db = SQLAlchemy(app)
 api = Api(app)
+CORS(app)
 
 # Image
 class Image(db.Model):
