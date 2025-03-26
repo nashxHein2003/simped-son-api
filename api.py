@@ -1,15 +1,22 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, json
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Resource, Api, reqparse, fields, marshal_with, abort
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 import os
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///image.db'
 app.config['UPLOAD_FOLDER'] = 'image'
+
+ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
+
 db = SQLAlchemy(app)
 api = Api(app)
 CORS(app)
+
+def allowed_file(filename):
+   return '.'in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Image
 class Image(db.Model):
@@ -19,6 +26,7 @@ class Image(db.Model):
 
   def __repr__(self):
      return f"Image(url = {self.url})"
+  
 
 # Tag Table
 class Tag(db.Model):
@@ -34,6 +42,8 @@ class ImageTag(db.Model):
   image = db.relationship('Image', backref=db.backref('image_tags', cascade='all, delete-orphan'))
   tag = db.relationship('Tag', backref=db.backref('image_tags', cascade='all, delete-orphan'))
 
+image_url_args = reqparse.RequestParser()
+image_url_args.add_argument('url', type=str, required=True, help="Image URL cannot be blank")
 
 tag_name_args = reqparse.RequestParser()
 tag_name_args.add_argument('name', type=str, required=True, help="Tag Name cannot be blank")
@@ -46,7 +56,7 @@ image_tag_args.add_argument('tag_ids', type=int, action='append', required=True,
 
 imageFields = {
    'id':fields.Integer,
-   'url':fields.String(255),
+   'url':fields.String,
    'created_at': fields.DateTime(dt_format='iso8601')
 }
 
@@ -71,8 +81,24 @@ def home():
 class ImageResource(Resource):
    @marshal_with(imageFields)
    def get(self):
+      print(Image.query.all().count) 
       images = Image.query.all()
+      print(images)
       return images
+   
+   
+   def post(self):
+    if not request.is_json:
+        return {"message": "Request must be JSON"}, 400 
+
+    args = request.get_json() 
+    url = args.get('url')
+    image_url = Image(url=url)
+    db.session.add(image_url)
+    db.session.commit()
+
+    return image_url, 201
+      
 
 
 class ImageByIdResource(Resource):
@@ -144,6 +170,81 @@ api.add_resource(ImageResource, '/api/images')
 api.add_resource(ImageByIdResource, '/api/detail/<int:id>')
 api.add_resource(TagResource, '/api/tags')
 api.add_resource(ImageTagResource, '/api/image-tags/<int:image_id>', '/api/image-tags')
+
+
+@app.route('/api/images/upload', methods=['POST']) 
+@marshal_with(imageFields)
+def upload_image():
+    if 'image' not in request.files:
+      return {"message": "No file part in the request"}, 400
+   
+    files = request.files.getlist('image')
+
+    error = {}
+    success = False
+    uploaded_urls = []
+
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+
+            image_url = f"{request.host_url}/{app.config['UPLOAD_FOLDER']}/{filename}"
+            new_image = Image(url = image_url)
+            db.session.add(new_image)
+            db.session.commit()
+            success = True
+            uploaded_urls.append(image_url)
+        else: 
+            error[file.filename] = "File type is not allowed"
+
+    if success and error:
+        error['message'] = "Some files were uploaded successfully, but some had errors"
+        return jsonify({"uploaded": uploaded_urls, "errors": error}), 207 
+    elif success:
+        return jsonify({"message": "File(s) successfully uploaded", "uploaded": uploaded_urls}), 201
+    else:
+        return jsonify({"errors": error}), 400
+    
+@app.route('/api/images/<int:image_id>', methods=['DELETE'])
+def delete_image(image_id):
+    image = Image.query.get(image_id)
+
+    if not image:
+        return {"message": "Image not found"}, 404
+
+    filename = os.path.basename(image.url)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    db.session.delete(image)
+    db.session.commit()
+
+    return {"message": "Image deleted successfully"}, 200
+
+    
+      
+# def upload_image():
+#     try:
+#         args = tag_name_args.parse_args()
+#         tag_name = args['name']
+
+#         existing_tag = Tag.query.filter_by(name=tag_name).first()
+#         if existing_tag:
+#             return {"message": "Tag already exists."}, 400
+
+#         tag = Tag(name=tag_name)
+#         db.session.add(tag)
+#         db.session.commit()
+
+#         return tag, 201
+#     except Exception as e:
+#         return {"error": str(e)}, 500
+
+
 
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
