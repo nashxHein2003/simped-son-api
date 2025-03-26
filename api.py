@@ -190,7 +190,7 @@ def upload_image():
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
 
-            image_url = f"{request.host_url}/{app.config['UPLOAD_FOLDER']}/{filename}"
+            image_url = f"{request.host_url}{app.config['UPLOAD_FOLDER']}/{filename}"
             new_image = Image(url = image_url)
             db.session.add(new_image)
             db.session.commit()
