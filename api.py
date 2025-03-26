@@ -175,37 +175,49 @@ api.add_resource(ImageTagResource, '/api/image-tags/<int:image_id>', '/api/image
 @app.route('/api/images/upload', methods=['POST']) 
 @marshal_with(imageFields)
 def upload_image():
-    if 'image' not in request.files:
-      return {"message": "No file part in the request"}, 400
+    args = image_url_args.parse_args()
+    image_url = args['url']
+    exsited_url = Image.query.filter_by(url = image_url).first()
+    if exsited_url:
+        return {"message": "Image already exists."}, 400
+    
+    url = Image(url = image_url)
+    db.session.add(url)
+    db.session.commit()
+    return {"Image added successfully"}, 201
+
+
+    # if 'image' not in request.files:
+    #   return {"message": "No file part in the request"}, 400
    
-    files = request.files.getlist('image')
+    # files = request.files.getlist('image')
 
-    error = {}
-    success = False
-    uploaded_urls = []
+    # error = {}
+    # success = False
+    # uploaded_urls = []
 
-    for file in files:
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
+    # for file in files:
+    #     if file and allowed_file(file.filename):
+    #         filename = secure_filename(file.filename)
+    #         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    #         file.save(file_path)
 
-            image_url = f"{request.host_url}{app.config['UPLOAD_FOLDER']}/{filename}"
-            new_image = Image(url = image_url)
-            db.session.add(new_image)
-            db.session.commit()
-            success = True
-            uploaded_urls.append(image_url)
-        else: 
-            error[file.filename] = "File type is not allowed"
+    #         image_url = f"{request.host_url}{app.config['UPLOAD_FOLDER']}/{filename}"
+    #         new_image = Image(url = image_url)
+    #         db.session.add(new_image)
+    #         db.session.commit()
+    #         success = True
+    #         uploaded_urls.append(image_url)
+    #     else: 
+    #         error[file.filename] = "File type is not allowed"
 
-    if success and error:
-        error['message'] = "Some files were uploaded successfully, but some had errors"
-        return jsonify({"uploaded": uploaded_urls, "errors": error}), 207 
-    elif success:
-        return jsonify({"message": "File(s) successfully uploaded", "uploaded": uploaded_urls}), 201
-    else:
-        return jsonify({"errors": error}), 400
+    # if success and error:
+    #     error['message'] = "Some files were uploaded successfully, but some had errors"
+    #     return jsonify({"uploaded": uploaded_urls, "errors": error}), 207 
+    # elif success:
+    #     return jsonify({"message": "File(s) successfully uploaded", "uploaded": uploaded_urls}), 201
+    # else:
+    #     return jsonify({"errors": error}), 400
     
 @app.route('/api/images/<int:image_id>', methods=['DELETE'])
 def delete_image(image_id):
@@ -214,11 +226,11 @@ def delete_image(image_id):
     if not image:
         return {"message": "Image not found"}, 404
 
-    filename = os.path.basename(image.url)
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    # filename = os.path.basename(image.url)
+    # file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    # if os.path.exists(file_path):
+    #     os.remove(file_path)
 
     db.session.delete(image)
     db.session.commit()
