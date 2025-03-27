@@ -165,11 +165,23 @@ class ImageTagResource(Resource):
             abort(400, message="No new tags were added")
 
         return {"message": "Tags added successfully", "tags": added_tags}, 201
+    
+    def delete(self, image_id, tag_id):
+        image_tag = ImageTag.query.filter_by(image_id=image_id, tag_id=tag_id).first()
+
+        if not image_tag:
+            return {"message": "Tag not found for this image"}, 404
+
+        db.session.delete(image_tag)
+        db.session.commit()
+
+        return {"message": "Tag deleted successfully"}, 200
+
 
 api.add_resource(ImageResource, '/api/images')
 api.add_resource(ImageByIdResource, '/api/detail/<int:id>')
 api.add_resource(TagResource, '/api/tags')
-api.add_resource(ImageTagResource, '/api/image-tags/<int:image_id>', '/api/image-tags')
+api.add_resource(ImageTagResource, '/api/image-tags/<int:image_id>', '/api/image-tags', '/api/image-tags/<image_id>/<tag_id>')
 
 
 @app.route('/api/images/upload', methods=['POST']) 
