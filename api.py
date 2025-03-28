@@ -83,7 +83,6 @@ class ImageResource(Resource):
    def get(self):
       print(Image.query.all().count) 
       images = Image.query.all()
-      print(images)
       return images
    
    
@@ -198,38 +197,6 @@ def upload_image():
     db.session.commit()
     return {"Image added successfully"}, 201
 
-
-    # if 'image' not in request.files:
-    #   return {"message": "No file part in the request"}, 400
-   
-    # files = request.files.getlist('image')
-
-    # error = {}
-    # success = False
-    # uploaded_urls = []
-
-    # for file in files:
-    #     if file and allowed_file(file.filename):
-    #         filename = secure_filename(file.filename)
-    #         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    #         file.save(file_path)
-
-    #         image_url = f"{request.host_url}{app.config['UPLOAD_FOLDER']}/{filename}"
-    #         new_image = Image(url = image_url)
-    #         db.session.add(new_image)
-    #         db.session.commit()
-    #         success = True
-    #         uploaded_urls.append(image_url)
-    #     else: 
-    #         error[file.filename] = "File type is not allowed"
-
-    # if success and error:
-    #     error['message'] = "Some files were uploaded successfully, but some had errors"
-    #     return jsonify({"uploaded": uploaded_urls, "errors": error}), 207 
-    # elif success:
-    #     return jsonify({"message": "File(s) successfully uploaded", "uploaded": uploaded_urls}), 201
-    # else:
-    #     return jsonify({"errors": error}), 400
     
 @app.route('/api/images/<int:image_id>', methods=['DELETE'])
 def delete_image(image_id):
@@ -238,37 +205,24 @@ def delete_image(image_id):
     if not image:
         return {"message": "Image not found"}, 404
 
-    # filename = os.path.basename(image.url)
-    # file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-    # if os.path.exists(file_path):
-    #     os.remove(file_path)
-
     db.session.delete(image)
     db.session.commit()
 
     return {"message": "Image deleted successfully"}, 200
 
+@app.route('/api/images/filter/<int:tag_id>', methods=['GET'])
+def filter_images_by_tag(tag_id):
+    image_tags = ImageTag.query.filter_by(tag_id=tag_id).all()
     
-      
-# def upload_image():
-#     try:
-#         args = tag_name_args.parse_args()
-#         tag_name = args['name']
+    if not image_tags:
+        return {"message": "No images found for this tag"}, 404
+    
+    image_ids = [it.image_id for it in image_tags]
+    images = Image.query.filter(Image.id.in_(image_ids)).all()
 
-#         existing_tag = Tag.query.filter_by(name=tag_name).first()
-#         if existing_tag:
-#             return {"message": "Tag already exists."}, 400
-
-#         tag = Tag(name=tag_name)
-#         db.session.add(tag)
-#         db.session.commit()
-
-#         return tag, 201
-#     except Exception as e:
-#         return {"error": str(e)}, 500
-
-
+    return jsonify([
+        {"id": image.id, "url": image.url, "created_at": image.created_at} for image in images
+    ])
 
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
